@@ -4,9 +4,15 @@ on:
   push:
     branches:
       - main
+    paths:
+      - "*.tf"
+      - "**/*.tf"
   pull_request:
     branches:
       - main
+    paths:
+      - "*.tf"
+      - "**/*.tf"
 
 # Set GitHub Actions token permissions
 permissions:
@@ -21,7 +27,7 @@ env:
 
 # Jobs
 jobs:
-  deploy-infra:
+  terraform-deploy:
     runs-on: ubuntu-latest
     defaults:
       run:
@@ -32,6 +38,25 @@ jobs:
       # Checkout the repository code
       - name: Git checkout
         uses: actions/checkout@v4
+
+      # Check if main.tf exists at the repo root
+      - name: Check for root-level main.tf
+        id: check
+        run: |
+          if [ ! -f "./main.tf" ]; then
+            echo "main.tf not found at repository root. Skipping workflow."
+            echo "skip=true" >> $GITHUB_OUTPUT
+          else
+            echo "main.tf found at root. Proceeding..."
+            echo "skip=false" >> $GITHUB_OUTPUT
+          fi
+
+      # Stop workflow if main.tf is missing
+      - name: Stop if main.tf is missing
+        if: steps.check.outputs.skip == 'true'
+        run: |
+          echo "No main.tf at root — skipping workflow run."
+          exit 0
 
       # Configure AWS credentials using OIDC
       - name: Configure AWS credentials from AWS account
