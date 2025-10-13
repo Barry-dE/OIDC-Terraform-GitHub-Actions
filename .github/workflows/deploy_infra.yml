@@ -58,7 +58,7 @@ jobs:
         id: init
         env:
           AWS_BUCKET_KEY_NAME: ${{ secrets.AWS_BUCKET_KEY_NAME }}
-          AWS_BUCKET_NAME: ${{ secrets.AWS_BUCKET_NAME }}
+          AWS_BUCKET_NAME: ${{ secrets.AWS_S3_BUCKET_NAME_TFSTATE }}
         run: |
           terraform init \
             -backend-config="bucket=${AWS_BUCKET_NAME}" \
