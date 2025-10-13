@@ -59,11 +59,13 @@ jobs:
         env:
           AWS_BUCKET_KEY_NAME: ${{ secrets.AWS_BUCKET_KEY_NAME }}
           AWS_BUCKET_NAME: ${{ secrets.AWS_S3_BUCKET_NAME_TFSTATE }}
+          AWS_DYNAMODB_STATEFILE_LOCK: ${{secrets.AWS_DYNAMODB_STATEFILE_LOCK}}
         run: |
           terraform init \
             -backend-config="bucket=${AWS_BUCKET_NAME}" \
             -backend-config="key=${AWS_BUCKET_KEY_NAME}" \
-            -backend-config="region=${AWS_REGION}"
+            -backend-config="region=${AWS_REGION}" \
+            -backend-config="dynamodb_table=${AWS_DYNAMODB_STATEFILE_LOCK}"
 
       # Validate Terraform configuration
       - name: Terraform Validate
