@@ -30,6 +30,10 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
+      - name: Write network config to temporary tfvars file
+        run: |
+          echo '${{ secrets.NETWORK_CONFIG }}' > network.auto.tfvars.json
+
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v4
         with:
