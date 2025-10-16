@@ -1,0 +1,198 @@
+name: "Terraform OIDC — Plan & Apply"
+
+on:
+  push:
+    branches: [main]
+    paths: ["*.tf", "**/*.tf"]
+  pull_request:
+    branches: [main]
+    paths: ["*.tf", "**/*.tf"]
+
+permissions:
+  id-token: write
+  contents: read
+  pull-requests: write
+  issues: write # Needed for manual approval
+
+env:
+  TF_LOG: INFO
+  AWS_REGION: ${{ secrets.AWS_REGION }}
+
+jobs:
+  terraform:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        shell: bash
+        working-directory: .
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_ROLE }}
+          role-session-name: GitHubActions-Terraform
+          aws-region: ${{ secrets.AWS_REGION }}
+
+      - name: Create Terraform plugin cache directory
+        run: mkdir -p $HOME/.terraform.d/plugin-cache
+
+      - name: Cache Terraform modules and plugins
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.terraform.d/plugin-cache
+            .terraform/
+          key: terraform-${{ runner.os }}-${{ hashFiles('**/.terraform.lock.hcl') }}
+          restore-keys: terraform-${{ runner.os }}-
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: 1.8.5
+          terraform_wrapper: false
+
+      - name: Terraform fmt
+        id: fmt
+        run: terraform fmt -check
+        continue-on-error: false
+
+      - name: Terraform init
+        id: init
+        env:
+          TF_PLUGIN_CACHE_DIR: $HOME/.terraform.d/plugin-cache
+        run: |
+          terraform init \
+            -backend-config="bucket=${{ secrets.AWS_S3_BUCKET_NAME_TFSTATE }}" \
+            -backend-config="key=${{ secrets.AWS_BUCKET_KEY_NAME }}" \
+            -backend-config="region=${{ secrets.AWS_REGION }}" \
+            -backend-config="dynamodb_table=${{ secrets.AWS_DYNAMODB_STATEFILE_LOCK }}"
+
+      - name: Terraform validate
+        id: validate
+        run: terraform validate -no-color
+
+      - name: Terraform plan
+        id: plan
+        if: github.event_name == 'pull_request'
+        run: terraform plan -no-color -out=tfplan
+        continue-on-error: true
+
+      # Capture plan output separately for PR comment
+      - name: Capture plan output
+        id: plan-output
+        if: github.event_name == 'pull_request'
+        run: |
+          terraform show -no-color tfplan > plan.txt
+          echo "PLAN<<EOF" >> $GITHUB_ENV
+          cat plan.txt >> $GITHUB_ENV
+          echo "EOF" >> $GITHUB_ENV
+
+      - name: Comment on PR with Terraform results
+        if: github.event_name == 'pull_request'
+        uses: actions/github-script@v7
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            const fmtIcon = "${{ steps.fmt.outcome }}" === "success" ? "✅" : "❌";
+            const initIcon = "${{ steps.init.outcome }}" === "success" ? "✅" : "❌";
+            const validateIcon = "${{ steps.validate.outcome }}" === "success" ? "✅" : "❌";
+            const planIcon = "${{ steps.plan.outcome }}" === "success" ? "✅" : "❌";
+
+            const planOutput = process.env.PLAN || "No plan output available";
+            const truncatedPlan = planOutput.length > 60000 
+              ? planOutput.substring(0, 60000) + "\n\n... (truncated)" 
+              : planOutput;
+
+            const output = `
+            ## 🧱 Terraform Workflow Summary
+
+            | Step | Status |
+            |------|---------|
+            | 🧹 Format | ${fmtIcon} \`${{ steps.fmt.outcome }}\` |
+            | ⚙️ Init | ${initIcon} \`${{ steps.init.outcome }}\` |
+            | ✅ Validate | ${validateIcon} \`${{ steps.validate.outcome }}\` |
+            | 🪄 Plan | ${planIcon} \`${{ steps.plan.outcome }}\` |
+
+            ---
+
+            <details>
+              <summary>🧩 <b>Terraform Plan</b> — Click to view</summary>
+
+              \`\`\`terraform
+              ${truncatedPlan}
+              \`\`\`
+            </details>
+
+            ---
+
+            🌍 **Region:** ${{ secrets.AWS_REGION }}  
+            💻 **Triggered by:** @${{ github.actor }}  
+            🕒 **Timestamp:** ${new Date().toUTCString()}
+            `;
+
+            github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: output
+            });
+
+      - name: Terraform Plan Status
+        if: steps.plan.outcome == 'failure'
+        run: exit 1
+
+  manual-approval:
+    needs: [terraform]
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+    environment:
+      name: production
+      url: https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}
+    steps:
+      - name: Manual approval gate
+        run: echo "Waiting for manual approval in GitHub environment protection rules"
+
+  terraform-apply:
+    needs: [manual-approval]
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+
+    defaults:
+      run:
+        shell: bash
+        working-directory: .
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_ROLE }}
+          role-session-name: GitHubActions-TerraformApply
+          aws-region: ${{ secrets.AWS_REGION }}
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: 1.8.5
+          terraform_wrapper: false
+
+      # CRITICAL: Must init before apply
+      - name: Terraform init
+        env:
+          TF_PLUGIN_CACHE_DIR: $HOME/.terraform.d/plugin-cache
+        run: |
+          terraform init \
+            -backend-config="bucket=${{ secrets.AWS_S3_BUCKET_NAME_TFSTATE }}" \
+            -backend-config="key=${{ secrets.AWS_BUCKET_KEY_NAME }}" \
+            -backend-config="region=${{ secrets.AWS_REGION }}" \
+            -backend-config="dynamodb_table=${{ secrets.AWS_DYNAMODB_STATEFILE_LOCK }}"
+
+      - name: Terraform apply
+        run: terraform apply -auto-approve -input=false
