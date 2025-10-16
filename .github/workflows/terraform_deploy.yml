@@ -196,3 +196,13 @@ jobs:
 
       - name: Terraform apply
         run: terraform apply -auto-approve -input=false
+
+      - name: Show Terraform Outputs
+        id: outputs
+        run: terraform output -json > tf_outputs.json
+
+      - name: Display key Terraform outputs
+        run: |
+          echo "VPC ID: $(jq -r '.vpc_id.value' tf_outputs.json)"
+          echo "Public Subnets: $(jq -r '.public_subnet_ids.value | join(", ")' tf_outputs.json)"
+          echo "Private Subnets: $(jq -r '.private_subnet_ids.value | join(", ")' tf_outputs.json)"
