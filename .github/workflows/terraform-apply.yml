@@ -1,0 +1,10 @@
+manual-approval:
+    needs: [terraform]
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+    environment:
+        name: production
+        url: https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}
+    steps:
+        - name: Manual approval gate
+          run: echo "Waiting for manual approval in GitHub environment protection rules"
