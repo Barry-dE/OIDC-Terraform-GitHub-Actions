@@ -7,8 +7,6 @@ on:
       - "terraform/**"
       - ".github/workflows/terraform-*.yml"
 
-  workflow_dispatch:
-
 permissions:
   id-token: write
   contents: read
@@ -24,7 +22,7 @@ jobs:
     name: Terraform Plan
     runs-on: ubuntu-latest
     environment: dev
-    timeout-minutes: 15
+    timeout-minutes: 16
 
     steps:
       - name: Checkout Code
