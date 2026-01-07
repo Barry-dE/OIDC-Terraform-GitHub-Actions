@@ -21,9 +21,9 @@ Parameters:
   Environment:
     Description: Deployment Environment name
     Type: String
-    Default: dev
+    Default: development
     AllowedValues:
-      - dev
+      - development
       - staging
       - prod
 

@@ -10,9 +10,9 @@ Parameters:
   Environment:
     Type: String
     Description: Environment name
-    Default: prod
+    Default: development
     AllowedValues:
-      - dev
+      - devevelopment
       - staging
       - prod
 
