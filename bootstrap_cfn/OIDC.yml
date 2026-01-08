@@ -16,7 +16,7 @@ Parameters:
   ProjectName:
     Description: Project Name
     Type: String
-    Default: oidc-tf-gh
+    Default: oidc-terraform-github-actions-demo
 
   Environment:
     Description: Deployment Environment name
@@ -25,7 +25,7 @@ Parameters:
     AllowedValues:
       - development
       - staging
-      - production
+      - prod
 
   BackendStackName:
     Description: Name of the CloudFormation stack that created the Terraform backend
@@ -64,7 +64,7 @@ Resources:
                 token.actions.githubusercontent.com:aud: sts.amazonaws.com
               StringLike:
                 token.actions.githubusercontent.com:sub:
-                  "Fn::Sub": "repo:${GitHubOrg}/${GitHubRepo}:pull_request:refs/heads/main"
+                  "Fn::Sub": "repo:${GitHubOrg}/${GitHubRepo}:ref:refs/pull/*"
       Description: Role for Terraform Plan
       MaxSessionDuration: 3600
       Path: /terraform/github-actions/
@@ -73,6 +73,7 @@ Resources:
           PolicyDocument:
             Version: "2012-10-17"
             Statement:
+              # Terraform State Access
               - Sid: TerraformStateBucketList
                 Effect: Allow
                 Action:
