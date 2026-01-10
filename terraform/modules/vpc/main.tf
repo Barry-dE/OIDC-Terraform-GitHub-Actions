@@ -215,10 +215,8 @@ resource "aws_default_security_group" "default" {
 }
 
 
-# Get current AWS account ID
-data "aws_caller_identity" "current" {}
 
-# Get current AWS region
+data "aws_caller_identity" "current" {}
 data "aws_region" "current" {}
 
 # KMS Key for CloudWatch Logs encryption
