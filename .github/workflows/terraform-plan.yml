@@ -125,18 +125,25 @@ jobs:
         uses: actions/github-script@v7
         env:
           PLAN_OUTPUT: ${{ env.PLAN_OUTPUT }}
-
+          FMT_OUTCOME: ${{ steps.fmt.outcome }}
+          INIT_OUTCOME: ${{ steps.init.outcome }}
+          VALIDATE_OUTCOME: ${{ steps.validate.outcome }}
+          CHECKOV_OUTCOME: ${{ steps.checkov.outcome }}
+          PLAN_OUTCOME: ${{ steps.plan.outcome }}
+          ACTOR: ${{ github.actor }}
+          EVENT_NAME: ${{ github.event_name }}
+          WORKFLOW: ${{ github.workflow }}
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
           script: |
             const output = `
-            ##  Terraform Plan Results
+            ## 🏗️ Terraform Plan Results
 
-            #### 🖌️ Format and Style  \`${{ steps.fmt.outcome }}\`
-            #### ⚙️ Initialization  \`${{ steps.init.outcome }}\`
-            #### 🤖 Validation  \`${{ steps.validate.outcome }}\`
-            #### 🔒 Checkov Security Scan  \`${{ steps.checkov.outcome }}\`
-            #### 📖 Plan  \`${{ steps.plan.outcome }}\`
+            #### 🖌️ Format and Style  \`${process.env.FMT_OUTCOME}\`
+            #### ⚙️ Initialization  \`${process.env.INIT_OUTCOME}\`
+            #### 🤖 Validation  \`${process.env.VALIDATE_OUTCOME}\`
+            #### 🔒 Checkov Security Scan  \`${process.env.CHECKOV_OUTCOME}\`
+            #### 📖 Plan  \`${process.env.PLAN_OUTCOME}\`
 
             ---
 
@@ -151,9 +158,9 @@ jobs:
             ---
 
             **🎯 Next Steps:**
-            ${steps.plan.outcome === 'success' ? '✅ Plan generated successfully! Review the changes and merge to apply.' : '❌ Plan failed! Check the logs above for errors.'}
+            ${process.env.PLAN_OUTCOME === 'success' ? '✅ Plan generated successfully! Review the changes and merge to apply.' : '❌ Plan failed! Check the logs above for errors.'}
 
-            *Pusher: @${{ github.actor }}, Action: \`${{ github.event_name }}\`, Workflow: \`${{ github.workflow }}\`*
+            *Pusher: @${process.env.ACTOR}, Action: \`${process.env.EVENT_NAME}\`, Workflow: \`${process.env.WORKFLOW}\`*
             `;
 
             // Find existing comment to update (prevents comment spam)
@@ -185,10 +192,8 @@ jobs:
               });
             }
 
-      # This is what branch protection rules will check
-      # Fail the workflow if any critical steps failed
       - name: Workflow Status Check
-        if: steps.fmt.outcome == 'failure' || steps.init.outcome == 'failure' || steps.validate.outcome == 'failure' || steps.plan.outcome == 'failure'
+        if: always() && (steps.fmt.outcome == 'failure' || steps.init.outcome == 'failure' || steps.validate.outcome == 'failure' || steps.plan.outcome == 'failure')
         run: |
           echo "❌ One or more critical steps failed:"
           echo "Format: ${{ steps.fmt.outcome }}"
