@@ -183,7 +183,7 @@ data "aws_iam_policy_document" "flow_log_permissions" {
   }
 }
 
-# Attach IAM Role Policy to the VPC Flow Log Role
+# Attach IAM Role Policy to VPC Flow Log Role
 resource "aws_iam_role_policy" "vpc_flow_log_iam_policy" {
   name   = "${var.network_config.kubernetes_cluster_name}-flow-log-policy"
   role   = aws_iam_role.vpc_flow_log_role.id
