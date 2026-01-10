@@ -38,7 +38,7 @@ resource "aws_subnet" "oidc_demo_public_subnet" {
   vpc_id = aws_vpc.oidc_demo_vpc.id
   availability_zone = var.network_config.availability_zones[count.index]
   cidr_block = var.network_config.public_subnet_cidrs[count.index]
-  map_public_ip_on_launch = true
+  map_public_ip_on_launch = false
 
   tags = {
     Name = "${var.network_config.kubernetes_cluster_name}-public-${count.index + 1}" 
@@ -135,8 +135,8 @@ resource "aws_route_table_association" "oidc_demo_public_route_table" {
 # Create CloudWatch Log Group for VPC Flow Logs
 resource "aws_cloudwatch_log_group" "oidc_demo_vpc_cloudwatch_log_group" {
   name = "/aws/vpc/${var.network_config.kubernetes_cluster_name}-flow-logs"
-  retention_in_days = 30
-
+  retention_in_days = 365
+  kms_key_id        = aws_kms_key.cloudwatch_logs.arn
   tags = {
     Name        = "${var.network_config.kubernetes_cluster_name}-flow-logs"
     Environment = var.network_config.environment
@@ -213,3 +213,66 @@ resource "aws_default_security_group" "default" {
     Owner       = var.network_config.owner
   }
 }
+
+
+# Get current AWS account ID
+data "aws_caller_identity" "current" {}
+
+# Get current AWS region
+data "aws_region" "current" {}
+
+# KMS Key for CloudWatch Logs encryption
+resource "aws_kms_key" "cloudwatch_logs" {
+  description             = "KMS key for ${var.network_config.kubernetes_cluster_name} CloudWatch Logs encryption"
+  enable_key_rotation     = true
+  deletion_window_in_days = 10
+  
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Id      = "cloudwatch-logs-key-policy"
+    Statement = [
+      {
+        Sid    = "Enable IAM User Permissions"
+        Effect = "Allow"
+        Principal = {
+          AWS = "arn:aws:iam::${data.aws_caller_identity.current.account_id}:root"
+        }
+        Action   = "kms:*"
+        Resource = "*"
+      },
+      {
+        Sid    = "Allow CloudWatch Logs to use the key"
+        Effect = "Allow"
+        Principal = {
+          Service = "logs.${data.aws_region.current.name}.amazonaws.com"
+        }
+        Action = [
+          "kms:Encrypt",
+          "kms:Decrypt",
+          "kms:ReEncrypt*",
+          "kms:GenerateDataKey*",
+          "kms:CreateGrant",
+          "kms:DescribeKey"
+        ]
+        Resource = "*"
+        Condition = {
+          ArnLike = {
+            "kms:EncryptionContext:aws:logs:arn" = "arn:aws:logs:${data.aws_region.current.name}:${data.aws_caller_identity.current.account_id}:log-group:/aws/vpc/${var.network_config.kubernetes_cluster_name}-flow-logs"
+          }
+        }
+      }
+    ]
+  })
+
+  tags = {
+    Name        = "${var.network_config.kubernetes_cluster_name}-cloudwatch-logs-key"
+    Environment = var.network_config.environment
+  }
+}
+
+# KMS Key Alias (optional but recommended for easier identification)
+resource "aws_kms_alias" "cloudwatch_logs" {
+  name          = "alias/${var.network_config.kubernetes_cluster_name}-cloudwatch-logs"
+  target_key_id = aws_kms_key.cloudwatch_logs.key_id
+}
+
