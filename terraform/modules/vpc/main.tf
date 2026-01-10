@@ -201,3 +201,15 @@ resource "aws_flow_log" "oidc_demo_vpc_flow_log" {
     Name = "${var.network_config.kubernetes_cluster_name}-flow-logs"
   }
 }
+
+# Block all traffic to/from default vpc security group
+resource "aws_default_security_group" "default" {
+  vpc_id = aws_vpc.oidc_demo_vpc.id
+
+  tags = {
+    Name        = "${var.network_config.kubernetes_cluster_name}-default-sg-restricted"
+    Project     = "${var.network_config.kubernetes_cluster_name}-demo"
+    Environment = var.network_config.environment
+    Owner       = var.network_config.owner
+  }
+}
