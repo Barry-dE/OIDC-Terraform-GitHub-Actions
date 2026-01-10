@@ -121,7 +121,7 @@ jobs:
           compression-level: 9
 
       - name: Post Plan Comment to PR
-        if: github.event_name == 'pull_request'
+        if: github.event_name == 'pull_request' && always()
         uses: actions/github-script@v8
         env:
           PLAN_OUTPUT: ${{ env.PLAN_OUTPUT }}
@@ -136,21 +136,29 @@ jobs:
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
           script: |
-            const output = `
-            ## 🏗️ Terraform Plan Results
+            const getEmoji = (outcome) => {
+              switch (outcome) {
+                case 'success': return '✅';
+                case 'failure': return '❌';
+                case 'skipped': return '⚪'; 
+                default: return '⚠️';
+              }
+            };
 
-            #### 🖌️ Format and Style  \`${process.env.FMT_OUTCOME}\`
-            #### ⚙️ Initialization  \`${process.env.INIT_OUTCOME}\`
-            #### 🤖 Validation  \`${process.env.VALIDATE_OUTCOME}\`
-            #### 🔒 Checkov Security Scan  \`${process.env.CHECKOV_OUTCOME}\`
-            #### 📖 Plan  \`${process.env.PLAN_OUTCOME}\`
+            const output = `## 🏗️ Terraform Plan Results
+
+            #### ${getEmoji(process.env.FMT_OUTCOME)} Format and Style: \`${process.env.FMT_OUTCOME}\`
+            #### ${getEmoji(process.env.INIT_OUTCOME)} Initialization: \`${process.env.INIT_OUTCOME}\`
+            #### ${getEmoji(process.env.VALIDATE_OUTCOME)} Validation: \`${process.env.VALIDATE_OUTCOME}\`
+            #### ${getEmoji(process.env.CHECKOV_OUTCOME)} Checkov Security Scan: \`${process.env.CHECKOV_OUTCOME}\`
+            #### ${getEmoji(process.env.PLAN_OUTCOME)} Plan: \`${process.env.PLAN_OUTCOME}\`
 
             ---
 
             <details><summary><b>📊 Terraform Plan Output</b></summary>
 
             \`\`\`terraform
-            ${process.env.PLAN_OUTPUT}
+            ${process.env.PLAN_OUTPUT || 'No plan output available.'}
             \`\`\`
 
             </details>
